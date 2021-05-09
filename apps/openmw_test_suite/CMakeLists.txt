@@ -1,61 +1,73 @@
-find_package(GTest 1.10 REQUIRED)
-find_package(GMock 1.10 REQUIRED)
+if (OPENMW_USE_SYSTEM_GOOGLETEST)
+    find_package(GTest 1.10 REQUIRED)
+    find_package(GMock 1.10 REQUIRED)
 
-if (GTEST_FOUND AND GMOCK_FOUND)
     include_directories(SYSTEM ${GTEST_INCLUDE_DIRS})
     include_directories(SYSTEM ${GMOCK_INCLUDE_DIRS})
+else()
+    cmake_minimum_required(VERSION 3.11)
 
-    file(GLOB UNITTEST_SRC_FILES
-        ../openmw/mwworld/store.cpp
-        ../openmw/mwworld/esmstore.cpp
-        mwworld/test_store.cpp
+    include(FetchContent)
 
-        mwdialogue/test_keywordsearch.cpp
+    set(SAVED_CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
-        esm/test_fixed_string.cpp
-        esm/variant.cpp
+    string(REPLACE "-Wundef" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
-        misc/test_stringops.cpp
-        misc/test_endianness.cpp
+    set(gtest_force_shared_crt ON)
 
-        nifloader/testbulletnifloader.cpp
-
-        detournavigator/navigator.cpp
-        detournavigator/settingsutils.cpp
-        detournavigator/recastmeshbuilder.cpp
-        detournavigator/gettilespositions.cpp
-        detournavigator/recastmeshobject.cpp
-        detournavigator/navmeshtilescache.cpp
-        detournavigator/tilecachedrecastmeshmanager.cpp
-
-        settings/parser.cpp
-
-        shader/parsedefines.cpp
-        shader/parsefors.cpp
-        shader/shadermanager.cpp
+    FetchContent_Declare(googletest
+        URL https://github.com/google/googletest/archive/refs/tags/release-1.10.0.zip
+        URL_HASH MD5=82358affdd7ab94854c8ee73a180fc53
+        SOURCE_DIR fetched/googletest
     )
 
-    source_group(apps\\openmw_test_suite FILES openmw_test_suite.cpp ${UNITTEST_SRC_FILES})
+    FetchContent_MakeAvailableExcludeFromAll(googletest)
 
-    openmw_add_executable(openmw_test_suite openmw_test_suite.cpp ${UNITTEST_SRC_FILES})
+    set(CMAKE_CXX_FLAGS "${SAVED_CMAKE_CXX_FLAGS}")
+    set(GMOCK_LIBRARIES gmock)
+endif()
 
-    target_link_libraries(openmw_test_suite ${GMOCK_LIBRARIES} components)
-    # Fix for not visible pthreads functions for linker with glibc 2.15
-    if (UNIX AND NOT APPLE)
-        target_link_libraries(openmw_test_suite ${CMAKE_THREAD_LIBS_INIT})
-    endif()
+file(GLOB UNITTEST_SRC_FILES
+    ../openmw/mwworld/store.cpp
+    ../openmw/mwworld/esmstore.cpp
+    mwworld/test_store.cpp
 
-    if (BUILD_WITH_CODE_COVERAGE)
-        add_definitions(--coverage)
-        target_link_libraries(openmw_test_suite gcov)
-    endif()
+    mwdialogue/test_keywordsearch.cpp
 
-    if (MSVC)
-        if (CMAKE_CL_64)
-            # Debug version of openmw_unit_tests needs increased number of sections beyond 2^16
-            # just like openmw and openmw-cs
-            set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /bigobj")
-        endif (CMAKE_CL_64)
-    endif (MSVC)
+    esm/test_fixed_string.cpp
+    esm/variant.cpp
 
+    misc/test_stringops.cpp
+    misc/test_endianness.cpp
+
+    nifloader/testbulletnifloader.cpp
+
+    detournavigator/navigator.cpp
+    detournavigator/settingsutils.cpp
+    detournavigator/recastmeshbuilder.cpp
+    detournavigator/gettilespositions.cpp
+    detournavigator/recastmeshobject.cpp
+    detournavigator/navmeshtilescache.cpp
+    detournavigator/tilecachedrecastmeshmanager.cpp
+
+    settings/parser.cpp
+
+    shader/parsedefines.cpp
+    shader/parsefors.cpp
+    shader/shadermanager.cpp
+)
+
+source_group(apps\\openmw_test_suite FILES openmw_test_suite.cpp ${UNITTEST_SRC_FILES})
+
+openmw_add_executable(openmw_test_suite openmw_test_suite.cpp ${UNITTEST_SRC_FILES})
+
+target_link_libraries(openmw_test_suite ${GMOCK_LIBRARIES} components)
+# Fix for not visible pthreads functions for linker with glibc 2.15
+if (UNIX AND NOT APPLE)
+    target_link_libraries(openmw_test_suite ${CMAKE_THREAD_LIBS_INIT})
+endif()
+
+if (BUILD_WITH_CODE_COVERAGE)
+    add_definitions(--coverage)
+    target_link_libraries(openmw_test_suite gcov)
 endif()

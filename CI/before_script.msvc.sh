@@ -74,6 +74,7 @@ TEST_FRAMEWORK=""
 GOOGLE_INSTALL_ROOT=""
 INSTALL_PREFIX="."
 BUILD_BENCHMARKS=""
+BUILD_UNITTESTS=""
 
 ACTIVATE_MSVC=""
 SINGLE_CONFIG=""
@@ -137,6 +138,9 @@ while [ $# -gt 0 ]; do
 			b )
 				BUILD_BENCHMARKS=true ;;
 
+			T )
+				BUILD_UNITTESTS=true ;;
+
 			h )
 				cat <<EOF
 Usage: $0 [-cdehkpuvVi]
@@ -173,6 +177,8 @@ Options:
 		CMake install prefix
 	-b
 		Build benchmarks
+	-T
+		Build unit tests
 EOF
 				wrappedExit 0
 				;;
@@ -1075,6 +1081,11 @@ fi
 
 if [ "${BUILD_BENCHMARKS}" ]; then
 	add_cmake_opts -DBUILD_BENCHMARKS=ON
+fi
+
+if [ "${BUILD_UNITTESTS}" ]; then
+	add_cmake_opts -DBUILD_UNITTESTS=ON
+	add_cmake_opts -DOPENMW_USE_SYSTEM_GOOGLETEST=OFF
 fi
 
 if [ -n "$ACTIVATE_MSVC" ]; then

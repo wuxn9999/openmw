@@ -144,6 +144,8 @@ else()
 endif()
 option(RECASTNAVIGATION_STATIC "Build recastnavigation static libraries" ${_recastnavigation_static_default})
 
+option(OPENMW_USE_SYSTEM_GOOGLETEST "Use system provided googletest libraries (gtest and gmock). Has effect only when BUILD_UNITTESTS is ON." ON)
+
 option(OPENMW_UNITY_BUILD "Use fewer compilation units to speed up compile time" FALSE)
 option(OPENMW_LTO_BUILD "Build OpenMW with Link-Time Optimization (Needs ~2GB of RAM)" OFF)
 
@@ -668,6 +670,10 @@ if (WIN32)
 
     if (BUILD_WIZARD)
         set_target_properties(openmw-wizard PROPERTIES COMPILE_FLAGS "${WARNINGS} ${MT_BUILD}")
+    endif()
+
+    if (BUILD_UNITTESTS)
+        set_target_properties(openmw_test_suite PROPERTIES COMPILE_FLAGS "${WARNINGS} ${MT_BUILD} /bigobj")
     endif()
 
     if (BUILD_BENCHMARKS)
