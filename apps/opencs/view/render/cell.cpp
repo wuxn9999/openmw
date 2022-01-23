@@ -1,23 +1,17 @@
 #include "cell.hpp"
 
-#include <math.h>
+#include <cmath>
 
 #include <osg/PositionAttitudeTransform>
-#include <osg/Geode>
-#include <osg/Geometry>
 #include <osg/Group>
 
+#include <memory>
 #include <components/misc/stringops.hpp>
 #include <components/esm/loadcell.hpp>
 #include <components/esm/loadland.hpp>
-#include <components/sceneutil/pathgridutil.hpp>
 #include <components/terrain/terraingrid.hpp>
 
 #include "../../model/world/idtable.hpp"
-#include "../../model/world/columns.hpp"
-#include "../../model/world/data.hpp"
-#include "../../model/world/refcollection.hpp"
-#include "../../model/world/cellcoordinates.hpp"
 
 #include "cellwater.hpp"
 #include "cellborder.hpp"
@@ -51,7 +45,7 @@ namespace CSVRender
             void operator()(osg::Node* node, osg::NodeVisitor* nv) override
             {
                 traverse(node, nv);
-                CellNodeContainer* container = static_cast<CellNodeContainer*>(node->getUserData());
+                auto* container = dynamic_cast<CellNodeContainer*>(node->getUserData());
                 container->getCell()->updateLand();
             }
     };
@@ -59,8 +53,7 @@ namespace CSVRender
 
 bool CSVRender::Cell::removeObject (const std::string& id)
 {
-    std::map<std::string, Object *>::iterator iter =
-        mObjects.find (Misc::StringUtils::lowerCase (id));
+    auto iter = mObjects.find (Misc::StringUtils::lowerCase (id));
 
     if (iter==mObjects.end())
         return false;
@@ -136,14 +129,14 @@ void CSVRender::Cell::updateLand()
             }
             else
             {
-                mTerrain.reset(new Terrain::TerrainGrid(mCellNode, mCellNode,
-                    mData.getResourceSystem().get(), mTerrainStorage, Mask_Terrain));
+                mTerrain = std::make_unique<Terrain::TerrainGrid>(mCellNode, mCellNode,
+                    mData.getResourceSystem().get(), mTerrainStorage, Mask_Terrain);
             }
 
             mTerrain->loadCell(esmLand.mX, esmLand.mY);
 
             if (!mCellBorder)
-                mCellBorder.reset(new CellBorder(mCellNode, mCoordinates));
+                mCellBorder = std::make_unique<CellBorder>(mCellNode, mCoordinates);
 
             mCellBorder->buildShape(esmLand);
 
@@ -194,16 +187,15 @@ CSVRender::Cell::Cell (CSMWorld::Data& data, osg::Group* rootNode, const std::st
 
         updateLand();
 
-        mPathgrid.reset(new Pathgrid(mData, mCellNode, mId, mCoordinates));
-        mCellWater.reset(new CellWater(mData, mCellNode, mId, mCoordinates));
+        mPathgrid = std::make_unique<Pathgrid>(mData, mCellNode, mId, mCoordinates);
+        mCellWater = std::make_unique<CellWater>(mData, mCellNode, mId, mCoordinates);
     }
 }
 
 CSVRender::Cell::~Cell()
 {
-    for (std::map<std::string, Object *>::iterator iter (mObjects.begin());
-        iter!=mObjects.end(); ++iter)
-        delete iter->second;
+    for (auto & mObject : mObjects)
+        delete mObject.second;
 
     mCellNode->getParent(0)->removeChild(mCellNode);
 }
@@ -218,9 +210,8 @@ bool CSVRender::Cell::referenceableDataChanged (const QModelIndex& topLeft,
 {
     bool modified = false;
 
-    for (std::map<std::string, Object *>::iterator iter (mObjects.begin());
-        iter!=mObjects.end(); ++iter)
-        if (iter->second->referenceableDataChanged (topLeft, bottomRight))
+    for (auto & mObject : mObjects)
+        if (mObject.second->referenceableDataChanged (topLeft, bottomRight))
             modified = true;
 
     return modified;
@@ -234,9 +225,8 @@ bool CSVRender::Cell::referenceableAboutToBeRemoved (const QModelIndex& parent, 
 
     bool modified = false;
 
-    for (std::map<std::string, Object *>::iterator iter (mObjects.begin());
-        iter!=mObjects.end(); ++iter)
-        if (iter->second->referenceableAboutToBeRemoved (parent, start, end))
+    for (auto & mObject : mObjects)
+        if (mObject.second->referenceableAboutToBeRemoved (parent, start, end))
             modified = true;
 
     return modified;
@@ -277,13 +267,13 @@ bool CSVRender::Cell::referenceDataChanged (const QModelIndex& topLeft,
     // perform update and remove where needed
     bool modified = false;
 
-    std::map<std::string, Object *>::iterator iter = mObjects.begin();
+    auto iter = mObjects.begin();
     while (iter!=mObjects.end())
     {
         if (iter->second->referenceDataChanged (topLeft, bottomRight))
             modified = true;
 
-        std::map<std::string, bool>::iterator iter2 = ids.find (iter->first);
+        auto iter2 = ids.find (iter->first);
 
         if (iter2!=ids.end())
         {
@@ -302,12 +292,12 @@ bool CSVRender::Cell::referenceDataChanged (const QModelIndex& topLeft,
     }
 
     // add new objects
-    for (std::map<std::string, bool>::iterator mapIter (ids.begin()); mapIter!=ids.end(); ++mapIter)
+    for (auto & id : ids)
     {
-        if (!mapIter->second)
+        if (!id.second)
         {
             mObjects.insert (std::make_pair (
-                mapIter->first, new Object (mData, mCellNode, mapIter->first, false)));
+                id.first, new Object (mData, mCellNode, id.first, false)));
 
             modified = true;
         }
@@ -547,14 +537,14 @@ void CSVRender::Cell::setCellArrows (int mask)
 {
     for (int i=0; i<4; ++i)
     {
-        CellArrow::Direction direction = static_cast<CellArrow::Direction> (1<<i);
+        auto direction = static_cast<CellArrow::Direction> (1<<i);
 
         bool enable = mask & direction;
 
-        if (enable!=(mCellArrows[i].get()!=nullptr))
+        if (enable!=(mCellArrows[i]!=nullptr))
         {
             if (enable)
-                mCellArrows[i].reset (new CellArrow (mCellNode, direction, mCoordinates));
+                mCellArrows[i] = std::make_unique<CellArrow> (mCellNode, direction, mCoordinates);
             else
                 mCellArrows[i].reset (nullptr);
         }
@@ -575,7 +565,7 @@ void CSVRender::Cell::setCellMarker()
     }
 
     if (!isInteriorCell) {
-        mCellMarker.reset(new CellMarker(mCellNode, mCoordinates, cellExists));
+        mCellMarker = std::make_unique<CellMarker>(mCellNode, mCoordinates, cellExists);
     }
 }
 
@@ -594,10 +584,9 @@ std::vector<osg::ref_ptr<CSVRender::TagBase> > CSVRender::Cell::getSelection (un
     std::vector<osg::ref_ptr<TagBase> > result;
 
     if (elementMask & Mask_Reference)
-        for (std::map<std::string, Object *>::const_iterator iter (mObjects.begin());
-            iter!=mObjects.end(); ++iter)
-            if (iter->second->getSelected())
-                result.push_back (iter->second->getTag());
+        for (const auto & mObject : mObjects)
+            if (mObject.second->getSelected())
+                result.push_back (mObject.second->getTag());
     if (mPathgrid && elementMask & Mask_Pathgrid)
         if (mPathgrid->isSelected())
             result.emplace_back(mPathgrid->getTag());
@@ -610,10 +599,9 @@ std::vector<osg::ref_ptr<CSVRender::TagBase> > CSVRender::Cell::getEdited (unsig
     std::vector<osg::ref_ptr<TagBase> > result;
 
     if (elementMask & Mask_Reference)
-        for (std::map<std::string, Object *>::const_iterator iter (mObjects.begin());
-            iter!=mObjects.end(); ++iter)
-            if (iter->second->isEdited())
-                result.push_back (iter->second->getTag());
+        for (const auto & mObject : mObjects)
+            if (mObject.second->isEdited())
+                result.push_back (mObject.second->getTag());
 
     return result;
 }
